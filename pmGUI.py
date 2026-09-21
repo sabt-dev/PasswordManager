@@ -2,20 +2,16 @@ from customtkinter import *
 from tkinter.messagebox import showerror
 from pm import passwordManager
 import os
-import time
-from threading import Thread
 
 pm = passwordManager()
 
 
 def deleteSite_caller():
-    deleteThread = Thread(target=p_m.deleteSite)
-    deleteThread.start()
+    p_m.deleteSite()
 
 
 def addPwd_caller():
-    loadKeyThread = Thread(target=p_m.addPassword)
-    loadKeyThread.start()
+    p_m.addPassword()
 
 
 class password_manager:
@@ -62,6 +58,9 @@ class password_manager:
         fileD = filedialog.askopenfilename(title='uploading key file',
                                            filetypes=(("key file", "*.key"),
                                                       ('All files', '*.*')))
+        if not fileD:
+            return
+
         pm.load_key(fileD)
 
         if os.path.exists(fileD):
@@ -78,10 +77,13 @@ class password_manager:
         openFilePath = filedialog.askopenfilename(title='opening password file',
                                                   filetypes=(("key file", "*.txt"),
                                                              ('All files', '*.*')))
+        if not openFilePath or not self.checkIfKeyIsLoaded:
+            return
+
         pm.load_passwordFile(openFilePath)
 
         if pm.checkKeyValidility:
-            if os.path.exists(openFilePath) and self.checkIfKeyIsLoaded:
+            if os.path.exists(openFilePath):
                 self.labelLoadPassFile.configure(text='file found!', fg_color='green4')
                 self.existencePFileChecker = True
                 self.window.update()
@@ -97,8 +99,8 @@ class password_manager:
         savePathFile = filedialog.asksaveasfilename(title='creating key file',
                                                     filetypes=(("key file", "*.key"),
                                                                ('All files', '*.*')))
-        if len(savePathFile) != 0:
-            pm.create_key(savePathFile + '.key')
+        if savePathFile:
+            pm.create_key(savePathFile if savePathFile.endswith('.key') else savePathFile + '.key')
 
     def addPassword(self):
         email = str(self.entryEmail.get()).strip()
@@ -116,8 +118,6 @@ class password_manager:
                                                  state=DISABLED)
 
                 self.window.update()
-                time.sleep(1.5)
-
                 self.buttonAddPassword.configure(fg_color='#1162a8', text='submit', hover_color='#013f75', state=NORMAL)
         else:
             self.buttonAddPassword.configure(fg_color='red4', text='invalid input',
@@ -125,8 +125,6 @@ class password_manager:
                                              state=DISABLED)
 
             self.window.update()
-            time.sleep(1.5)
-
             self.buttonAddPassword.configure(fg_color='#1162a8', text='submit', hover_color='#013f75', state=NORMAL)
 
     def getPassword(self, choice):
@@ -144,8 +142,8 @@ class password_manager:
         saveFilePath = filedialog.asksaveasfilename(title='creating password file',
                                                     filetypes=(("text file", "*.txt"),
                                                                ('All files', '*.*')))
-        if len(saveFilePath) != 0:
-            pm.create_passwordFile(saveFilePath + '.txt')
+        if saveFilePath:
+            pm.create_passwordFile(saveFilePath if saveFilePath.endswith('.txt') else saveFilePath + '.txt')
 
     def deleteSite(self):
         if (not str(self.deleteSiteEntry.get()).isspace()) and (str(self.deleteSiteEntry.get()) != ''):
@@ -156,8 +154,6 @@ class password_manager:
                                         state=DISABLED)
 
             self.window.update()
-            time.sleep(1.5)
-
             self.deleteButton.configure(fg_color='#1162a8', text='delete', hover_color='#013f75', state=NORMAL)
         else:
             self.deleteButton.configure(fg_color='red4', text='invalid input',
@@ -165,8 +161,6 @@ class password_manager:
                                         state=DISABLED)
 
             self.window.update()
-            time.sleep(1.5)
-
             self.deleteButton.configure(fg_color='#1162a8', text='delete', hover_color='#013f75', state=NORMAL)
 
         sites: list = pm.getAllSites()

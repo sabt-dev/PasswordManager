@@ -1,6 +1,5 @@
-import cryptography.fernet
-from cryptography.fernet import Fernet
-from tkinter.messagebox import *
+from cryptography.fernet import Fernet, InvalidToken
+from tkinter.messagebox import showerror
 
 
 class passwordManager:
@@ -9,8 +8,8 @@ class passwordManager:
         self.key = None
         self.pwd_file = None
         self.pwd_dict: dict = {}
-        self.array_checker: set = set()
-        self.checkKeyValidility: bool = True
+        self.array_checker: set[tuple[str, str, str]] = set()
+        self.checkKeyValidility: bool = False
 
     def create_key(self, path):
         try:
@@ -29,6 +28,8 @@ class passwordManager:
 
     def create_passwordFile(self, path, initial_values: dict = None):
         self.pwd_file = path
+        self.pwd_dict = {}
+        self.array_checker = set()
         with open(self.pwd_file, 'w'):
             pass
 
@@ -40,43 +41,43 @@ class passwordManager:
     def load_passwordFile(self, path):
         self.pwd_file = path
         self.pwd_dict = {}
+        self.array_checker = set()
+        self.checkKeyValidility = False
 
         try:
             with open(path, 'r') as f:
                 for line in f:
                     try:
-                        site, email, encrypted_pwd = line.split(':')
-                        decryptedPass = Fernet(self.key).decrypt(encrypted_pwd.encode()).decode()
-                        self.pwd_dict[site] = {email: decryptedPass}
-                        self.array_checker = site, email, decryptedPass
+                        site, email, encrypted_pwd = line.rstrip('\n').split(':', 2)
+                        decrypted_pass = Fernet(self.key).decrypt(encrypted_pwd.encode()).decode()
+                        self.pwd_dict.setdefault(site, {})[email] = decrypted_pass
+                        self.array_checker.add((site, email, decrypted_pass))
                     except ValueError:
-                        pass
-                # prints the decrypted dictionary, needed to be removed when done!!!
+                        continue
                 self.checkKeyValidility = True
-                print(self.pwd_dict)
-                print(self.array_checker)
         except FileNotFoundError:
             pass
         except TypeError:
             showerror('Error', '!!!the key is required first!!!')
-        except cryptography.fernet.InvalidToken:
+        except InvalidToken:
             self.checkKeyValidility = False
             showerror('Error', '!!!Invalid key!!!')
 
     def add_password(self, site, email, password):
-        self.pwd_dict[site] = {email: password}
-        # self.array_checker = site, email, password
+        entry = (site, email, password)
+        self.pwd_dict.setdefault(site, {})[email] = password
 
         if self.pwd_file is not None:
+            if self.key is None:
+                raise ValueError('A key must be loaded before adding passwords')
             with open(self.pwd_file, 'a+') as f:
-                if (site not in self.array_checker) or \
-                        (email not in self.array_checker) or (password not in self.array_checker):
+                if entry not in self.array_checker:
                     encrypted = Fernet(self.key).encrypt(password.encode())
                     f.write(site + ':' + email + ':' + encrypted.decode() + '\n')
+                    self.array_checker.add(entry)
 
-        # to check there's no repetitive same line when pressing submit button multiple times
-        # recalling the function "load_passwordFile" from a class "passwordManager"
-        passwordManager.load_passwordFile(self, self.pwd_file)
+        if self.pwd_file is not None:
+            self.load_passwordFile(self.pwd_file)
 
     def get_password(self, site) -> list:
         for primeKey, subKey in self.pwd_dict.items():
@@ -89,17 +90,20 @@ class passwordManager:
         return list(self.pwd_dict)
 
     def delete_site(self, targetedSite):
-        newList: list = []
+        if self.pwd_file is None:
+            return
+
+        new_list: list[str] = []
 
         with open(self.pwd_file, 'r') as f:
             lines: list = f.readlines()
             for line in lines:
-                site, email, encrypted_pwd = line.split(':')
+                site, _, _ = line.rstrip('\n').split(':', 2)
                 if targetedSite != site:
-                    newList.append(line)
+                    new_list.append(line)
 
         with open(self.pwd_file, 'w') as f:
-            for line in newList:
+            for line in new_list:
                 f.write(line)
 
-        passwordManager.load_passwordFile(self, self.pwd_file)
+        self.load_passwordFile(self.pwd_file)
