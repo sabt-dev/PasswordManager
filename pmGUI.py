@@ -1,5 +1,6 @@
 from customtkinter import *
 from tkinter.messagebox import showerror
+from tkinter.simpledialog import askstring
 from pm import passwordManager
 import os
 
@@ -61,7 +62,16 @@ class password_manager:
         if not fileD:
             return
 
-        pm.load_key(fileD)
+        master_password = askstring('Master password', 'Enter your master password:',
+                                    show='*', parent=self.window)
+        if not master_password:
+            return
+
+        try:
+            pm.load_key(fileD, master_password)
+        except ValueError as error:
+            showerror('Key error', str(error), parent=self.window)
+            return
 
         if os.path.exists(fileD):
             self.labelLoadKey.configure(text='key found!', fg_color='green4')
@@ -94,13 +104,24 @@ class password_manager:
                 self.optionSite.configure(state=NORMAL, values=sites)
                 self.deleteButton.configure(state=NORMAL)
 
-    @staticmethod
-    def createKey():
+    def createKey(self):
         savePathFile = filedialog.asksaveasfilename(title='creating key file',
                                                     filetypes=(("key file", "*.key"),
                                                                ('All files', '*.*')))
         if savePathFile:
-            pm.create_key(savePathFile if savePathFile.endswith('.key') else savePathFile + '.key')
+            master_password = askstring('Create master password', 'Enter a master password:',
+                                         show='*', parent=self.window)
+            if not master_password:
+                return
+
+            confirmation = askstring('Confirm master password', 'Enter it again:',
+                                     show='*', parent=self.window)
+            if master_password != confirmation:
+                showerror('Password error', 'The master passwords do not match.', parent=self.window)
+                return
+
+            pm.create_key(savePathFile if savePathFile.endswith('.key') else savePathFile + '.key',
+                          master_password)
 
     def addPassword(self):
         email = str(self.entryEmail.get()).strip()

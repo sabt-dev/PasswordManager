@@ -1,8 +1,18 @@
+import base64
+import hashlib
+import hmac
+import os
+
 from cryptography.fernet import Fernet, InvalidToken
 from tkinter.messagebox import showerror
 
 
 class passwordManager:
+
+    _MASTER_KEY_HEADER = b'PMK1'
+    _SALT_LENGTH = 16
+    _VERIFIER = b'SecureVault master key verifier'
+    _PBKDF2_ITERATIONS = 600_000
 
     def __init__(self):
         self.key = None
@@ -11,20 +21,43 @@ class passwordManager:
         self.array_checker: set[tuple[str, str, str]] = set()
         self.checkKeyValidility: bool = False
 
-    def create_key(self, path):
+    def create_key(self, path, master_password):
         try:
-            self.key = Fernet.generate_key()
+            salt = os.urandom(self._SALT_LENGTH)
+            self.key = self._derive_key(master_password, salt)
             with open(path, 'wb') as f:
-                f.write(self.key)
+                verifier = hmac.new(self.key, self._VERIFIER, hashlib.sha256).digest()
+                f.write(self._MASTER_KEY_HEADER + salt + verifier)
         except FileNotFoundError:
             pass
 
-    def load_key(self, path):
+    def load_key(self, path, master_password=None):
         try:
             with open(path, 'rb') as f:
-                self.key = f.read()
+                key_data = f.read()
+
+            if key_data.startswith(self._MASTER_KEY_HEADER):
+                key_payload = key_data[len(self._MASTER_KEY_HEADER):]
+                if not master_password or len(key_payload) != self._SALT_LENGTH + hashlib.sha256().digest_size:
+                    raise ValueError('A master password is required')
+                salt = key_payload[:self._SALT_LENGTH]
+                expected_verifier = key_payload[self._SALT_LENGTH:]
+                self.key = self._derive_key(master_password, salt)
+                verifier = hmac.new(self.key, self._VERIFIER, hashlib.sha256).digest()
+                if not hmac.compare_digest(verifier, expected_verifier):
+                    self.key = None
+                    raise ValueError('Invalid master password')
+            else:
+                # Keep existing key files usable during the format transition.
+                self.key = key_data
         except FileNotFoundError:
             pass
+
+    @classmethod
+    def _derive_key(cls, master_password, salt):
+        derived_key = hashlib.pbkdf2_hmac(
+            'sha256', master_password.encode('utf-8'), salt, cls._PBKDF2_ITERATIONS, 32)
+        return base64.urlsafe_b64encode(derived_key)
 
     def create_passwordFile(self, path, initial_values: dict = None):
         self.pwd_file = path
